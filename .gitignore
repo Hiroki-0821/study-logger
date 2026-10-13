@@ -1,0 +1,9 @@
+# 学習履歴のJSON
+出力JSON/
+
+# エディタ設定
+.vscode/
+
+# OSが作るファイル
+.DS_Store
+Thumbs.db

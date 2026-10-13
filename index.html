@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Logger</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+
+        <header>
+            <h1>Study Logger</h1>
+            <p>学習時間を記録して、日々の積み重ねを可視化しよう。</p>
+        </header>
+
+        <!-- 学習状況 -->
+        <section class="stats">
+            <div class="card stat-card">
+                <p>今日の学習</p>
+                <h2 id="todayTime">0時間0分</h2>
+            </div>
+
+            <div class="card stat-card">
+                <p>累計学習</p>
+                <h2 id="totalTime">0時間0分</h2>
+            </div>
+
+            <div class="card stat-card">
+                <p>学習記録数</p>
+                <h2 id="recordCount">0件</h2>
+            </div>
+        </section>
+
+        <!-- タイマー・学習入力 -->
+        <section class="card timer-card">
+            <h2>学習タイマー</h2>
+
+            <div id="timer">00:00:00</div>
+
+            <div class="button-group">
+                <button id="startBtn">スタート</button>
+                <button id="pauseBtn">一時停止</button>
+                <button id="resetBtn">リセット</button>
+            </div>
+
+            <div class="form-group">
+                <label for="category">学習カテゴリ</label>
+                <select id="category">
+                    <option value="Python">Python</option>
+                    <option value="簿記">簿記</option>
+                    <option value="英語">英語</option>
+                    <option value="その他">その他</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="memo">学習内容</label>
+                <textarea id="memo"
+                    placeholder="何を勉強しましたか？"></textarea>
+            </div>
+
+            <button id="saveBtn" class="primary-button">
+                学習記録を保存
+            </button>
+        </section>
+
+        <!-- カテゴリ別集計 -->
+        <section class="card">
+            <h2>カテゴリ別学習時間</h2>
+            <div id="categoryChart"></div>
+        </section>
+
+        <!-- 学習履歴 -->
+        <section class="card">
+            <h2>学習履歴</h2>
+            <ul id="recordList"></ul>
+        </section>
+
+        <!-- JSON管理 -->
+        <section class="card">
+            <h2>JSONデータ管理</h2>
+            <p id="folderStatus">保存先が未設定です</p>
+
+            <div class="button-group">
+                <button id="folderBtn">保存先を選択</button>
+                <button id="exportBtn">JSONを書き出す</button>
+            </div>
+        </section>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
