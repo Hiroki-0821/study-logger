@@ -2,6 +2,15 @@ let seconds = 0;
 let timerId = null;
 let elapsedBeforeStart = 0;
 let startedAt = null;
+const WORK_SECONDS =  10 ;//25 * 60;
+const BREAK_SECONDS = 5 ;//5 * 60;
+
+let pomodoroPhase = "work";
+let pomodoroRemaining = WORK_SECONDS;
+let pomodoroTimerId = null;
+let pomodoroEndsAt = null;
+let completedCycles = 0;
+let accumulatedWorkSeconds = 0;
 
 const timerDisplay = document.getElementById("timer");
 
@@ -41,6 +50,12 @@ function pauseTimer() {
 
 // スタート
 document.getElementById("startBtn").addEventListener("click", function() {
+
+    if (currentMode === "pomodoro") {
+        startPomodoro();
+        return;
+    }
+
     if (startedAt !== null) return;
 
     startedAt = Date.now();
@@ -49,17 +64,45 @@ document.getElementById("startBtn").addEventListener("click", function() {
 });
 
 // 一時停止
-document.getElementById("pauseBtn").addEventListener("click", pauseTimer);
+document.getElementById("pauseBtn").addEventListener("click", function() {
+
+    if (currentMode === "pomodoro") {
+        pausePomodoro();
+    } else {
+        pauseTimer();
+    }
+
+});
 
 // リセット
 document.getElementById("resetBtn").addEventListener("click", function() {
-    pauseTimer();
 
     if (!confirm("計測時間をリセットしますか？")) return;
 
-    elapsedBeforeStart = 0;
-    seconds = 0;
-    updateDisplay();
+    if (currentMode === "pomodoro") {
+
+        // ポモドーロのタイマーを停止
+        clearInterval(pomodoroTimerId);
+        pomodoroTimerId = null;
+        pomodoroEndsAt = null;
+
+        // すべての状態を初期化
+        pomodoroPhase = "work";
+        pomodoroRemaining = WORK_SECONDS;
+        completedCycles = 0;
+        accumulatedWorkSeconds = 0;
+
+        displayPomodoro();
+
+    } else {
+
+        // 通常タイマーのリセット
+        pauseTimer();
+
+        elapsedBeforeStart = 0;
+        seconds = 0;
+        updateDisplay();
+    }
 });
 // 保存済みの学習記録を読み込む
 let studyRecords = JSON.parse(
@@ -89,12 +132,24 @@ document.getElementById("saveBtn").addEventListener("click", function() {
     const category = document.getElementById("category").value;
     const memo = document.getElementById("memo").value;
 
+    let durationSeconds;
+    let cycles = 0;
+
+    if (currentMode === "pomodoro") {
+        durationSeconds = getPomodoroWorkSeconds();
+        cycles = completedCycles;
+    } else {
+        durationSeconds = seconds;
+}
+
     // 1回分の学習記録を作成
     const record = {
         id: crypto.randomUUID(),
         date: new Date().toISOString(),
         category: category,
-        duration_seconds: seconds,
+        mode: currentMode,
+        duration_seconds: durationSeconds,
+        completed_cycles: cycles,
         memo: memo,
         exported: false
     };
@@ -113,12 +168,13 @@ document.getElementById("saveBtn").addEventListener("click", function() {
     displayRecords();
     alert("学習記録を保存しました！");
 
-    pauseTimer();
-
-    // 記録を保存した後に初期化
-    elapsedBeforeStart = 0;
-    seconds = 0;
-    updateDisplay();
+    if (currentMode === "pomodoro") {
+        resetPomodoroState();
+    } else {
+        elapsedBeforeStart = 0;
+        seconds = 0;
+        updateDisplay();
+    }
 
     // メモ欄を空にする
     document.getElementById("memo").value = "";
@@ -462,3 +518,215 @@ function displayCategoryChart(categoryTotals) {
 }
 
 updateDashboard();
+
+let currentMode = "normal";
+
+const normalModeBtn = document.getElementById("normalModeBtn");
+const pomodoroModeBtn = document.getElementById("pomodoroModeBtn");
+const modeDescription = document.getElementById("modeDescription");
+
+function switchMode(mode) {
+
+    // 通常タイマーまたはポモドーロが進行中なら切り替え禁止
+    if (
+        startedAt !== null ||
+        seconds > 0 ||
+        pomodoroTimerId !== null ||
+        completedCycles > 0 ||
+        pomodoroRemaining !== WORK_SECONDS
+    ) {
+        alert("進行中のセッションがあるため切り替えできません。");
+        return;
+    }
+
+    currentMode = mode;
+
+    if (mode === "normal") {
+
+        modeDescription.textContent =
+            "通常タイマー：経過時間を計測します";
+
+        timerDisplay.textContent = "00:00:00";
+
+    } else {
+
+        // ポモドーロの初期状態を設定
+        pomodoroPhase = "work";
+        pomodoroRemaining = WORK_SECONDS;
+
+        // ポモドーロ用の表示に更新
+        displayPomodoro();
+    }
+}
+
+
+normalModeBtn.addEventListener("click", function() {
+    switchMode("normal");
+});
+
+pomodoroModeBtn.addEventListener("click", function() {
+    switchMode("pomodoro");
+});
+
+function formatPomodoroTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+
+    return (
+        String(minutes).padStart(2, "0") + ":" +
+        String(secs).padStart(2, "0")
+    );
+}
+
+function displayPomodoro() {
+    timerDisplay.textContent =
+        formatPomodoroTime(pomodoroRemaining);
+
+    modeDescription.textContent =
+        pomodoroPhase === "work"
+            ? "集中時間：" + completedCycles + "セット完了"
+            : "休憩時間：" + completedCycles + "セット完了";
+}
+
+function startPomodoro() {
+    if (pomodoroTimerId !== null) return;
+
+    pomodoroEndsAt = Date.now() + pomodoroRemaining * 1000;
+
+    pomodoroTimerId = setInterval(updatePomodoro, 200);
+
+    displayPomodoro();
+
+    saveActiveSession(); 
+}
+
+function updatePomodoro() {
+    if (pomodoroEndsAt === null) return;
+
+    pomodoroRemaining = Math.max(
+        0,
+        Math.ceil((pomodoroEndsAt - Date.now()) / 1000)
+    );
+
+    if (pomodoroRemaining === 0) {
+
+        if (pomodoroPhase === "work") {
+            completedCycles++;
+            accumulatedWorkSeconds += WORK_SECONDS;
+
+            pomodoroPhase = "break";
+            pomodoroRemaining = BREAK_SECONDS;
+        } else {
+            pomodoroPhase = "work";
+            pomodoroRemaining = WORK_SECONDS;
+        }
+
+        pomodoroEndsAt =
+            Date.now() + pomodoroRemaining * 1000;
+    }
+
+    displayPomodoro();
+
+    saveActiveSession();
+}
+
+function pausePomodoro() {
+    if (pomodoroTimerId === null) return;
+
+    updatePomodoro();
+
+    clearInterval(pomodoroTimerId);
+    pomodoroTimerId = null;
+    pomodoroEndsAt = null;
+    saveActiveSession();
+}
+
+function getPomodoroWorkSeconds() {
+    let total = accumulatedWorkSeconds;
+
+    if (pomodoroPhase === "work") {
+        let remaining = pomodoroRemaining;
+
+        // 計測中なら現在時刻から正確な残り時間を求める
+        if (pomodoroEndsAt !== null) {
+            remaining = Math.max(
+                0,
+                (pomodoroEndsAt - Date.now()) / 1000
+            );
+        }
+
+        total += Math.max(0, WORK_SECONDS - remaining);
+    }
+
+    return Math.floor(total);
+}
+
+function resetPomodoroState() {
+    clearInterval(pomodoroTimerId);
+
+    pomodoroTimerId = null;
+    pomodoroEndsAt = null;
+    pomodoroPhase = "work";
+    pomodoroRemaining = WORK_SECONDS;
+    completedCycles = 0;
+    accumulatedWorkSeconds = 0;
+
+    // 保存されていた進行中のセッションを削除
+    localStorage.removeItem(ACTIVE_SESSION_KEY);
+
+    displayPomodoro();
+}
+
+const ACTIVE_SESSION_KEY = "activeSession";
+
+function saveActiveSession() {
+    if (currentMode !== "pomodoro") return;
+
+    const session = {
+        mode: "pomodoro",
+        phase: pomodoroPhase,
+        remaining: pomodoroRemaining,
+        endsAt: pomodoroEndsAt,
+        completedCycles: completedCycles,
+        accumulatedWorkSeconds: accumulatedWorkSeconds,
+        running: pomodoroTimerId !== null,
+        savedAt: Date.now()
+    };
+
+    localStorage.setItem(
+        ACTIVE_SESSION_KEY,
+        JSON.stringify(session)
+    );
+}
+
+function restoreActiveSession() {
+    const saved = localStorage.getItem(ACTIVE_SESSION_KEY);
+
+    if (!saved) return;
+
+    try {
+        const session = JSON.parse(saved);
+
+        if (session.mode !== "pomodoro") return;
+
+        currentMode = "pomodoro";
+        pomodoroPhase = session.phase;
+        pomodoroRemaining = session.remaining;
+        completedCycles = session.completedCycles;
+        accumulatedWorkSeconds = session.accumulatedWorkSeconds;
+
+        // ページ更新後は、安全のため一時停止状態で復元
+        pomodoroEndsAt = null;
+        pomodoroTimerId = null;
+
+        displayPomodoro();
+
+        modeDescription.textContent +=
+            "（前回のセッションを復元しました）";
+
+    } catch (error) {
+        console.error("セッション復元エラー:", error);
+    }
+}
+
+restoreActiveSession();
