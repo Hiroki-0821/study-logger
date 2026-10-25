@@ -2,8 +2,8 @@ let seconds = 0;
 let timerId = null;
 let elapsedBeforeStart = 0;
 let startedAt = null;
-const WORK_SECONDS =  10 ;//25 * 60;
-const BREAK_SECONDS = 5 ;//5 * 60;
+const WORK_SECONDS =  25 * 60;
+const BREAK_SECONDS = 5 * 60;
 
 let pomodoroPhase = "work";
 let pomodoroRemaining = WORK_SECONDS;
@@ -11,6 +11,8 @@ let pomodoroTimerId = null;
 let pomodoroEndsAt = null;
 let completedCycles = 0;
 let accumulatedWorkSeconds = 0;
+const INTERRUPTION_THRESHOLD_MS = 60 * 1000;
+let lastPomodoroUpdateAt = null;
 
 const timerDisplay = document.getElementById("timer");
 
@@ -590,6 +592,7 @@ function displayPomodoro() {
 
 function startPomodoro() {
     if (pomodoroTimerId !== null) return;
+    lastPomodoroUpdateAt = Date.now();
 
     pomodoroEndsAt = Date.now() + pomodoroRemaining * 1000;
 
@@ -635,9 +638,14 @@ function pausePomodoro() {
 
     updatePomodoro();
 
+    // 中断検知によって既に停止していた場合
+    if (pomodoroTimerId === null) return;
+
     clearInterval(pomodoroTimerId);
     pomodoroTimerId = null;
     pomodoroEndsAt = null;
+    lastPomodoroUpdateAt = null;
+
     saveActiveSession();
 }
 
@@ -670,6 +678,7 @@ function resetPomodoroState() {
     pomodoroRemaining = WORK_SECONDS;
     completedCycles = 0;
     accumulatedWorkSeconds = 0;
+    lastPomodoroUpdateAt = null;
 
     // 保存されていた進行中のセッションを削除
     localStorage.removeItem(ACTIVE_SESSION_KEY);
@@ -730,3 +739,38 @@ function restoreActiveSession() {
 }
 
 restoreActiveSession();
+
+function checkPomodoroInterruption() {
+    if (lastPomodoroUpdateAt === null ||
+        pomodoroEndsAt === null) {
+        return false;
+    }
+
+    const gap = Date.now() - lastPomodoroUpdateAt;
+
+    if (gap < INTERRUPTION_THRESHOLD_MS) {
+        return false;
+    }
+
+    // 最後に更新できた時点の残り時間を取得
+    pomodoroRemaining = Math.max(
+        0,
+        Math.ceil(
+            (pomodoroEndsAt - lastPomodoroUpdateAt) / 1000
+        )
+    );
+
+    clearInterval(pomodoroTimerId);
+
+    pomodoroTimerId = null;
+    pomodoroEndsAt = null;
+    lastPomodoroUpdateAt = null;
+
+    displayPomodoro();
+    saveActiveSession();
+
+    modeDescription.textContent +=
+        "（長時間中断のため一時停止しました）";
+
+    return true;
+}
