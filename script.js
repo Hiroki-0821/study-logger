@@ -2,7 +2,7 @@ let seconds = 0;
 let timerId = null;
 let elapsedBeforeStart = 0;
 let startedAt = null;
-const WORK_SECONDS =  25 * 60;
+const WORK_SECONDS = 25 * 60;
 const BREAK_SECONDS = 5 * 60;
 
 let pomodoroPhase = "work";
@@ -606,30 +606,40 @@ function startPomodoro() {
 function updatePomodoro() {
     if (pomodoroEndsAt === null) return;
 
-    pomodoroRemaining = Math.max(
-        0,
-        Math.ceil((pomodoroEndsAt - Date.now()) / 1000)
-    );
+    // 長時間中断を検知
+    if (checkPomodoroInterruption()) {
+        return;
+    }
 
-    if (pomodoroRemaining === 0) {
+    const now = Date.now();
+    lastPomodoroUpdateAt = now;
+
+    // フェーズの終了予定時刻を過ぎた場合
+    while (now >= pomodoroEndsAt) {
 
         if (pomodoroPhase === "work") {
             completedCycles++;
             accumulatedWorkSeconds += WORK_SECONDS;
 
             pomodoroPhase = "break";
-            pomodoroRemaining = BREAK_SECONDS;
+
+            // 前の終了予定時刻を基準にする
+            pomodoroEndsAt += BREAK_SECONDS * 1000;
+
         } else {
             pomodoroPhase = "work";
-            pomodoroRemaining = WORK_SECONDS;
-        }
 
-        pomodoroEndsAt =
-            Date.now() + pomodoroRemaining * 1000;
+            pomodoroEndsAt += WORK_SECONDS * 1000;
+        }
     }
 
-    displayPomodoro();
+    // 現在のフェーズの残り時間を計算
+    pomodoroRemaining = Math.max(
+        0,
+        Math.ceil((pomodoroEndsAt - now) / 1000)
+    );
 
+    displayPomodoro();
     saveActiveSession();
 }
 
